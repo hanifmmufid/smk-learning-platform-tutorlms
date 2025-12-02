@@ -1,0 +1,68 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+!.env.example
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Uploads and generated files
+backend/uploads/
+backend/public/uploads/
+uploads/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# PM2
+.pm2/
+ecosystem.config.js
+
+# Prisma
+backend/prisma/migrations/*_migration.sql
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Debug
+debug/
+*.debug
+
+# Old/Backup files
+platform-old/
+*.backup
+*.bak
+*.old

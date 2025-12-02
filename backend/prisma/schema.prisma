@@ -1,0 +1,296 @@
+// SMK Learning Platform - Prisma Schema
+// Phase 0 & Phase 1: Authentication & User Management
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// Phase 1: Authentication & Users
+// ============================================
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(STUDENT)
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  enrollments        Enrollment[]
+  taughtSubjects     Subject[]      @relation("TeacherSubjects")
+  uploadedMaterials  Material[]     @relation("UploadedMaterials")
+  createdAssignments Assignment[]   @relation("CreatedAssignments")
+  submissions        Submission[]   @relation("StudentSubmissions")
+  gradedSubmissions  Submission[]   @relation("GradedByTeacher")
+  createdQuizzes     Quiz[]         @relation("CreatedQuizzes")
+  quizAttempts       QuizAttempt[]  @relation("StudentQuizAttempts")
+
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+}
+
+// ============================================
+// Phase 2: Academic Structure (Schema only)
+// ============================================
+
+model Class {
+  id           String   @id @default(cuid())
+  name         String   // "X TKJ 1"
+  grade        Int      // 10, 11, 12
+  academicYear String   // "2024/2025"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  subjects    Subject[]
+  enrollments Enrollment[]
+
+  @@map("classes")
+}
+
+model Subject {
+  id        String   @id @default(cuid())
+  name      String   // "Pemrograman Web"
+  classId   String
+  teacherId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  class       Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacher     User         @relation("TeacherSubjects", fields: [teacherId], references: [id])
+  enrollments Enrollment[]
+  materials   Material[]
+  assignments Assignment[]
+  quizzes     Quiz[]
+
+  @@map("subjects")
+}
+
+model Enrollment {
+  id         String   @id @default(cuid())
+  studentId  String
+  classId    String
+  subjectId  String
+  enrolledAt DateTime @default(now())
+
+  student User    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, subjectId])
+  @@map("enrollments")
+}
+
+// ============================================
+// Phase 3: Materials Management
+// ============================================
+
+model Material {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  type        MaterialType
+  fileUrl     String?      // For uploaded files (stored path)
+  url         String?      // For YouTube/external links
+  fileName    String?      // Original file name
+  fileSize    Int?         // File size in bytes
+  mimeType    String?      // MIME type (application/pdf, video/mp4, etc)
+  subjectId   String
+  uploadedBy  String       // Teacher who uploaded
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  subject  Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  uploader User    @relation("UploadedMaterials", fields: [uploadedBy], references: [id])
+
+  @@map("materials")
+}
+
+enum MaterialType {
+  FILE  // PDF, DOC, PPT, XLS, etc
+  VIDEO // Uploaded video (MP4, etc)
+  LINK  // YouTube or external link
+}
+
+// ============================================
+// Phase 4: Assignment System
+// ============================================
+
+model Assignment {
+  id                  String           @id @default(cuid())
+  title               String
+  description         String?
+  instructions        String           @db.Text // HTML or Markdown content
+  subjectId           String
+  teacherId           String           // Teacher who created the assignment
+  dueDate             DateTime
+  maxScore            Int              @default(100)
+  allowLateSubmission Boolean          @default(false)
+  status              AssignmentStatus @default(DRAFT)
+  attachmentUrl       String?          // Optional file attachment for assignment instructions
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  subject     Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher     User         @relation("CreatedAssignments", fields: [teacherId], references: [id])
+  submissions Submission[]
+
+  @@map("assignments")
+}
+
+model Submission {
+  id            String           @id @default(cuid())
+  assignmentId  String
+  studentId     String
+  content       String?          @db.Text // Text answer
+  attachmentUrl String?          // Student's uploaded file
+  submittedAt   DateTime?
+  score         Int?             // Grade (0 to maxScore)
+  feedback      String?          @db.Text // Teacher's feedback
+  status        SubmissionStatus @default(PENDING)
+  gradedAt      DateTime?
+  gradedBy      String?          // Teacher who graded
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student    User       @relation("StudentSubmissions", fields: [studentId], references: [id], onDelete: Cascade)
+  grader     User?      @relation("GradedByTeacher", fields: [gradedBy], references: [id])
+
+  @@unique([assignmentId, studentId]) // One submission per student per assignment
+  @@map("submissions")
+}
+
+enum AssignmentStatus {
+  DRAFT     // Not yet published
+  PUBLISHED // Active and visible to students
+  CLOSED    // Past due date, no more submissions
+}
+
+enum SubmissionStatus {
+  PENDING   // Not yet submitted
+  SUBMITTED // Submitted, awaiting grading
+  GRADED    // Graded by teacher
+  LATE      // Submitted after due date
+}
+
+// ============================================
+// Phase 5: Quiz System
+// ============================================
+
+model Quiz {
+  id          String     @id @default(cuid())
+  title       String
+  description String?    @db.Text
+  subjectId   String
+  teacherId   String     // Teacher who created the quiz
+  timeLimit   Int?       // Time limit in minutes (null = unlimited)
+  passingScore Int       @default(60) // Minimum score to pass (percentage)
+  maxScore    Int        @default(100) // Total points
+  shuffleQuestions Boolean @default(false)
+  shuffleAnswers Boolean @default(false)
+  showResults Boolean    @default(true) // Show results to students after submission
+  status      QuizStatus @default(DRAFT)
+  startDate   DateTime?  // When quiz becomes available
+  endDate     DateTime?  // When quiz closes
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  subject   Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher   User           @relation("CreatedQuizzes", fields: [teacherId], references: [id])
+  questions Question[]
+  attempts  QuizAttempt[]
+
+  @@map("quizzes")
+}
+
+model Question {
+  id            String       @id @default(cuid())
+  quizId        String
+  type          QuestionType
+  question      String       @db.Text // Question text
+  points        Int          @default(1) // Points for this question
+  order         Int          // Question order in quiz
+  explanation   String?      @db.Text // Explanation shown after submission
+
+  // For MCQ and True/False
+  options       Json?        // Array of options: [{id: "a", text: "Option A", isCorrect: true}, ...]
+
+  // For Essay
+  maxWords      Int?         // Maximum word count for essay questions
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  quiz    Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers Answer[]
+
+  @@map("questions")
+}
+
+model QuizAttempt {
+  id          String            @id @default(cuid())
+  quizId      String
+  studentId   String
+  startedAt   DateTime          @default(now())
+  submittedAt DateTime?
+  score       Int?              // Total score achieved
+  percentage  Float?            // Percentage score
+  isPassed    Boolean?          // Whether student passed
+  status      QuizAttemptStatus @default(IN_PROGRESS)
+  timeSpent   Int?              // Time spent in seconds
+
+  quiz    Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  student User     @relation("StudentQuizAttempts", fields: [studentId], references: [id], onDelete: Cascade)
+  answers Answer[]
+
+  @@unique([quizId, studentId]) // One attempt per student per quiz (can be changed for multiple attempts)
+  @@map("quiz_attempts")
+}
+
+model Answer {
+  id            String   @id @default(cuid())
+  attemptId     String
+  questionId    String
+  answer        Json     // Flexible storage: {selectedOption: "a"} or {text: "essay answer"} or {value: true/false}
+  isCorrect     Boolean? // Auto-graded for MCQ/True-False, null for Essay
+  pointsAwarded Int?     // Points awarded (auto for MCQ, manual for Essay)
+  feedback      String?  @db.Text // Teacher feedback for essay questions
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  attempt  QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId]) // One answer per question per attempt
+  @@map("answers")
+}
+
+enum QuizStatus {
+  DRAFT     // Not yet published
+  PUBLISHED // Active and visible to students
+  CLOSED    // Past end date, no more attempts
+}
+
+enum QuestionType {
+  MCQ        // Multiple Choice Question
+  ESSAY      // Essay/Text Answer
+  TRUE_FALSE // True or False
+}
+
+enum QuizAttemptStatus {
+  IN_PROGRESS // Student is currently taking the quiz
+  SUBMITTED   // Quiz submitted, awaiting grading (for essay questions)
+  GRADED      // Fully graded
+}

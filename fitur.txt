@@ -1,0 +1,4 @@
+🧑‍🏫 Untuk Guru (Teacher Dashboard)
+FiturDeskripsiUpload MateriPDF, Video, DOC, PPT, link YouTubeBuat AssignmentTugas dengan deadline, instruksi, dan file attachmentBuat Quiz/UjianMultiple choice, isian singkat, essay, true/falseGrading SystemNilai otomatis (quiz) + manual (essay/tugas)Lihat SubmissionReview jawaban siswa, beri feedbackGradebookRekap nilai per siswa per mata pelajaranPengumumanBroadcast ke seluruh siswa di kelas
+👨‍🎓 Untuk Siswa (Student Dashboard)
+FiturDeskripsiAkses MateriBrowse & download materi per mapelSubmit TugasUpload file tugas sebelum deadlineKerjakan QuizInterface quiz yang user-friendlyLihat NilaiCek nilai tugas, quiz, dan feedback guruProgress TrackingStatus materi yang sudah dibaca/selesaiNotifikasiDeadline, tugas baru, nilai keluar
