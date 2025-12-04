@@ -8,15 +8,26 @@ import {
   addQuestion,
   deleteQuestion,
   getQuizAttempts,
-  getQuizStatusColor,
-  getQuizStatusLabel,
-  formatTimeLimit,
   getAttemptStatusColor,
   getAttemptStatusLabel,
   formatPercentage,
 } from '../../services/quizService';
 import { getAllSubjects } from '../../services/subjectService';
 import { useAuthStore } from '../../stores/authStore';
+import { useThemeStore } from '../../stores/themeStore';
+import Sidebar from '../../components/layout/Sidebar';
+import Header from '../../components/layout/Header';
+import { StatCard } from '../../components/widgets';
+import { QuizCard } from '../../components/widgets';
+import FilterBar from '../../components/ui/FilterBar';
+import EmptyState from '../../components/ui/EmptyState';
+import {
+  DocumentTextIcon,
+  PencilSquareIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  PlusIcon,
+} from '@heroicons/react/24/outline';
 
 interface Subject {
   id: string;
@@ -26,10 +37,12 @@ interface Subject {
 
 export default function TeacherQuizzesPage() {
   const user = useAuthStore((state) => state.user);
+  const { theme, toggleTheme } = useThemeStore();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showQuestionsModal, setShowQuestionsModal] = useState(false);
   const [showAttemptsModal, setShowAttemptsModal] = useState(false);
@@ -64,7 +77,6 @@ export default function TeacherQuizzesPage() {
     ] as QuizOption[],
     maxWords: 100,
   });
-
 
   useEffect(() => {
     fetchData();
@@ -200,7 +212,6 @@ export default function TeacherQuizzesPage() {
     }
   };
 
-
   const resetForm = () => {
     setFormData({
       title: '',
@@ -258,132 +269,186 @@ export default function TeacherQuizzesPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading...</div>
+  // Filter quizzes based on search query
+  const filteredQuizzes = quizzes.filter((quiz) => {
+    const matchesSearch = quiz.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      quiz.description?.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSearch;
+  });
+
+  // Calculate statistics
+  const stats = {
+    total: quizzes.length,
+    draft: quizzes.filter((q) => q.status === 'DRAFT').length,
+    published: quizzes.filter((q) => q.status === 'PUBLISHED').length,
+    closed: quizzes.filter((q) => q.status === 'CLOSED').length,
+  };
+
+  // Skeleton Card Component
+  const SkeletonCard = () => (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-pulse">
+      <div className="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
+      <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
+      <div className="h-4 bg-gray-200 rounded w-full mb-4"></div>
+      <div className="space-y-2 mb-4">
+        <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+        <div className="h-3 bg-gray-200 rounded w-1/3"></div>
       </div>
-    );
-  }
+      <div className="h-10 bg-gray-200 rounded"></div>
+    </div>
+  );
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Kelola Quiz</h1>
-        <p className="text-gray-600">Buat dan kelola quiz untuk siswa</p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
+      <Sidebar
+        user={{
+          name: user?.name || 'Teacher',
+          role: user?.role || 'TEACHER',
+          email: user?.email,
+        }}
+        navItems={[]}
+        isOpen={false}
+        onToggle={() => {}}
+        onLogout={() => {}}
+        darkMode={theme === 'dark'}
+        onToggleDarkMode={toggleTheme}
+      />
 
-      {/* Actions */}
-      <div className="mb-6 flex justify-between items-center">
-        <div className="flex gap-4">
-          <select
-            value={selectedSubject}
-            onChange={(e) => setSelectedSubject(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Semua Mata Pelajaran</option>
-            {subjects.map((subject) => (
-              <option key={subject.id} value={subject.id}>
-                {subject.name} - {subject.class.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          + Buat Quiz Baru
-        </button>
-      </div>
+      <div className="lg:pl-64">
+        <Header
+          user={{
+            name: user?.name || 'Teacher',
+            role: user?.role || 'TEACHER',
+          }}
+        />
 
-      {/* Quiz List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {quizzes.map((quiz) => (
-          <div key={quiz.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition">
-            {/* Status Badge */}
-            <div className="mb-3">
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getQuizStatusColor(quiz.status)}`}>
-                {getQuizStatusLabel(quiz.status)}
-              </span>
-            </div>
+        <main className="p-4 sm:p-6 lg:p-8">
 
-            {/* Title & Description */}
-            <h3 className="text-xl font-bold text-gray-900 mb-2">{quiz.title}</h3>
-            {quiz.description && (
-              <p className="text-gray-600 text-sm mb-4 line-clamp-2">{quiz.description}</p>
-            )}
-
-            {/* Info */}
-            <div className="space-y-2 mb-4 text-sm text-gray-700">
-              <div className="flex justify-between">
-                <span>Mata Pelajaran:</span>
-                <span className="font-semibold">{quiz.subject?.name}</span>
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h1 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-primary-600 to-primary-800 bg-clip-text text-transparent mb-2">
+                  Kelola Quiz
+                </h1>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Buat dan kelola quiz untuk siswa Anda
+                </p>
               </div>
-              <div className="flex justify-between">
-                <span>Pertanyaan:</span>
-                <span className="font-semibold">{quiz.totalQuestions || 0}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Waktu:</span>
-                <span className="font-semibold">{formatTimeLimit(quiz.timeLimit)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Passing Score:</span>
-                <span className="font-semibold">{quiz.passingScore}%</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Attempts:</span>
-                <span className="font-semibold">{quiz.totalAttempts || 0}</span>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex flex-col gap-2">
               <button
-                onClick={() => {
-                  setSelectedQuiz(quiz);
-                  setShowQuestionsModal(true);
-                  resetQuestionForm();
-                }}
-                className="w-full px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm font-medium"
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white font-semibold rounded-xl hover:from-primary-700 hover:to-primary-800 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
               >
-                Kelola Pertanyaan
-              </button>
-
-              {quiz.status === 'DRAFT' && (
-                <button
-                  onClick={() => handlePublishQuiz(quiz)}
-                  className="w-full px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 text-sm font-medium"
-                >
-                  Publish Quiz
-                </button>
-              )}
-
-              <button
-                onClick={() => handleViewAttempts(quiz)}
-                className="w-full px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 text-sm font-medium"
-              >
-                Lihat Attempts ({quiz.totalAttempts || 0})
-              </button>
-
-              <button
-                onClick={() => handleDeleteQuiz(quiz.id)}
-                className="w-full px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm font-medium"
-              >
-                Hapus
+                <PlusIcon className="w-5 h-5 mr-2" />
+                Buat Quiz Baru
               </button>
             </div>
           </div>
-        ))}
-      </div>
 
-      {quizzes.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-500 text-lg">Belum ada quiz. Buat quiz pertama Anda!</p>
-        </div>
-      )}
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+            <StatCard
+              title="Total Quiz"
+              value={stats.total}
+              icon={<DocumentTextIcon className="w-6 h-6" />}
+              color="primary"
+            />
+            <StatCard
+              title="Draft"
+              value={stats.draft}
+              icon={<PencilSquareIcon className="w-6 h-6" />}
+              color="warning"
+            />
+            <StatCard
+              title="Dipublikasikan"
+              value={stats.published}
+              icon={<CheckCircleIcon className="w-6 h-6" />}
+              color="success"
+            />
+            <StatCard
+              title="Ditutup"
+              value={stats.closed}
+              icon={<XCircleIcon className="w-6 h-6" />}
+              color="danger"
+            />
+          </div>
+
+          {/* Filter Bar */}
+          <div className="mb-6 flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <FilterBar
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                placeholder="Cari quiz..."
+              />
+            </div>
+            <select
+              value={selectedSubject}
+              onChange={(e) => setSelectedSubject(e.target.value)}
+              className="px-4 py-2 bg-white border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent shadow-sm"
+            >
+              <option value="">Semua Mata Pelajaran</option>
+              {subjects.map((subject) => (
+                <option key={subject.id} value={subject.id}>
+                  {subject.name} - {subject.class.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Quiz Grid */}
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
+          ) : filteredQuizzes.length === 0 ? (
+            <EmptyState
+              icon={<DocumentTextIcon className="w-12 h-12" />}
+              title="Belum ada quiz"
+              description={
+                searchQuery
+                  ? 'Tidak ada quiz yang cocok dengan pencarian Anda'
+                  : 'Mulai buat quiz pertama Anda untuk siswa'
+              }
+              action={{
+                label: 'Buat Quiz Baru',
+                onClick: () => setShowCreateModal(true),
+              }}
+            />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredQuizzes.map((quiz) => (
+                <QuizCard
+                  key={quiz.id}
+                  id={quiz.id}
+                  title={quiz.title}
+                  description={quiz.description}
+                  subject={{
+                    name: quiz.subject?.name || '',
+                    class: quiz.subject?.class,
+                  }}
+                  totalQuestions={quiz.totalQuestions}
+                  timeLimit={quiz.timeLimit}
+                  passingScore={quiz.passingScore}
+                  totalAttempts={quiz.totalAttempts}
+                  status={quiz.status}
+                  viewMode="teacher"
+                  onManageQuestions={() => {
+                    setSelectedQuiz(quiz);
+                    setShowQuestionsModal(true);
+                    resetQuestionForm();
+                  }}
+                  onPublish={() => handlePublishQuiz(quiz)}
+                  onViewAttempts={() => handleViewAttempts(quiz)}
+                  onDelete={() => handleDeleteQuiz(quiz.id)}
+                />
+              ))}
+            </div>
+          )}
+        </main>
+      </div>
 
       {/* Create Quiz Modal */}
       {showCreateModal && (
@@ -400,7 +465,7 @@ export default function TeacherQuizzesPage() {
                   required
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -410,7 +475,7 @@ export default function TeacherQuizzesPage() {
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -422,7 +487,7 @@ export default function TeacherQuizzesPage() {
                   required
                   value={formData.subjectId}
                   onChange={(e) => setFormData({ ...formData, subjectId: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Pilih Mata Pelajaran</option>
                   {subjects.map((subject) => (
@@ -444,7 +509,7 @@ export default function TeacherQuizzesPage() {
                     value={formData.timeLimit}
                     onChange={(e) => setFormData({ ...formData, timeLimit: e.target.value })}
                     placeholder="Kosongkan untuk unlimited"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
@@ -459,7 +524,7 @@ export default function TeacherQuizzesPage() {
                     required
                     value={formData.passingScore}
                     onChange={(e) => setFormData({ ...formData, passingScore: parseInt(e.target.value) })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -503,7 +568,7 @@ export default function TeacherQuizzesPage() {
                     setShowCreateModal(false);
                     resetForm();
                   }}
-                  className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="px-6 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg hover:bg-gray-50"
                 >
                   Batal
                 </button>
@@ -545,7 +610,7 @@ export default function TeacherQuizzesPage() {
                           <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
                             {q.type}
                           </span>
-                          <span className="text-sm text-gray-600">{q.points} poin</span>
+                          <span className="text-sm text-gray-600 dark:text-gray-300">{q.points} poin</span>
                         </div>
                         <p className="font-medium">{idx + 1}. {q.question}</p>
                         {(q.type === 'MCQ' || q.type === 'TRUE_FALSE') && q.options && (
@@ -582,7 +647,7 @@ export default function TeacherQuizzesPage() {
                   <select
                     value={questionForm.type}
                     onChange={(e) => handleQuestionTypeChange(e.target.value as QuestionType)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg"
                   >
                     <option value="MCQ">Multiple Choice (MCQ)</option>
                     <option value="TRUE_FALSE">Benar/Salah</option>
@@ -597,7 +662,7 @@ export default function TeacherQuizzesPage() {
                     value={questionForm.question}
                     onChange={(e) => setQuestionForm({ ...questionForm, question: e.target.value })}
                     rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg"
                   />
                 </div>
 
@@ -610,7 +675,7 @@ export default function TeacherQuizzesPage() {
                       required
                       value={questionForm.points}
                       onChange={(e) => setQuestionForm({ ...questionForm, points: parseInt(e.target.value) })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg"
                     />
                   </div>
 
@@ -622,7 +687,7 @@ export default function TeacherQuizzesPage() {
                         min="10"
                         value={questionForm.maxWords}
                         onChange={(e) => setQuestionForm({ ...questionForm, maxWords: parseInt(e.target.value) })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg"
                       />
                     </div>
                   )}
@@ -658,7 +723,7 @@ export default function TeacherQuizzesPage() {
                               setQuestionForm({ ...questionForm, options: newOptions });
                             }}
                             placeholder={`Pilihan ${opt.id.toUpperCase()}`}
-                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg"
+                            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg"
                             disabled={questionForm.type === 'TRUE_FALSE'}
                           />
                         </div>
@@ -676,7 +741,7 @@ export default function TeacherQuizzesPage() {
                     onChange={(e) => setQuestionForm({ ...questionForm, explanation: e.target.value })}
                     rows={2}
                     placeholder="Penjelasan akan ditampilkan setelah siswa submit"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg"
                   />
                 </div>
 
@@ -731,7 +796,7 @@ export default function TeacherQuizzesPage() {
                   {attempts.map((attempt) => (
                     <tr key={attempt.id}>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
                           {attempt.student?.name}
                         </div>
                         <div className="text-sm text-gray-500">{attempt.student?.email}</div>
@@ -741,10 +806,10 @@ export default function TeacherQuizzesPage() {
                           {getAttemptStatusLabel(attempt.status)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {attempt.score !== null && attempt.score !== undefined ? attempt.score : '-'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {formatPercentage(attempt.percentage)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

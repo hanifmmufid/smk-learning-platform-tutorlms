@@ -5,10 +5,10 @@
 
 ## 📊 Progress Tracker
 
-**Current Phase**: Phase 5 - Quiz System ✅ **COMPLETE** | Phase 6 Ready
-**Overall Progress**: 85% (Phases 0-5 Complete + Production Deployment)
+**Current Phase**: Phase 8 - Polish & Optimization 🚧 **READY TO START**
+**Overall Progress**: 95% (Phases 0-7 Complete)
 **Production URL**: https://smk.hanifmufid.com (PM2 Managed)
-**Last Updated**: 2025-12-02 16:30 UTC
+**Last Updated**: 2025-12-03 01:10 UTC
 
 | Phase | Status | Progress | Duration |
 |-------|--------|----------|----------|
@@ -18,8 +18,8 @@
 | Phase 3: Materials Management | ✅ **COMPLETE** | 100% | ~4 hours |
 | Phase 4: Assignment System | ✅ **COMPLETE** | 100% | ~3 hours |
 | Phase 5: Quiz System | ✅ **COMPLETE** | 100% | ~5 hours |
-| Phase 6: Gradebook & Progress | ⏳ Pending | 0% | 3-4 days |
-| Phase 7: Announcements | ⏳ Pending | 0% | 2-3 days |
+| Phase 6: Gradebook & Progress | ✅ **COMPLETE** | 100% | ~2 hours |
+| Phase 7: Announcements | ✅ **COMPLETE** | 100% | ~2 hours |
 | Phase 8: Polish & Optimization | ⏳ Pending | 0% | 3-4 days |
 | Phase 9: Deployment & Launch | ⏳ Pending | 0% | 1-2 days |
 
@@ -1264,28 +1264,324 @@ Is Passed = Percentage >= Passing Score
 
 ---
 
-### Phase 6: Gradebook & Progress Tracking
-**Goal**: Centralized grades & progress view
+### Phase 6: Gradebook & Progress Tracking ✅ **COMPLETE**
+**Status**: ✅ Complete (Completed 2025-12-03)
+**Progress**: Backend API ✅ | Frontend UI ✅ | CSV Export ✅ (100% Complete)
+**Duration**: ~2 hours (Backend ~1 hour, Frontend ~1 hour)
+**Goal**: Centralized grade aggregation and progress tracking
 
 #### Features:
-- Gradebook per subject (Teacher)
-- Student grades view
-- Progress tracking
-- Export to CSV
+- ✅ Gradebook per subject (Teacher view with all students)
+- ✅ Student grades view (across all subjects)
+- ✅ Progress tracking timeline
+- ✅ Export to CSV functionality
+- ✅ Weighted grading (60% assignments + 40% quizzes)
+- ✅ Letter grade calculation (A, B, C, D, E)
+- ✅ Statistics dashboard
 
-_(Full details similar to original plan)_
+#### Key Implementation Details:
+**No New Database Tables** - Pure aggregation from existing Submission and QuizAttempt models
+
+#### Grading Formula:
+```javascript
+// Assignment average (from all GRADED submissions)
+assignmentAverage = sum(submission.score) / submissions.length
+
+// Quiz average (from all GRADED quiz attempts)
+quizAverage = sum(attempt.score) / attempts.length
+
+// Overall grade (weighted)
+overallGrade = (assignmentAverage * 0.6) + (quizAverage * 0.4)
+
+// Letter grade
+A: 85-100, B: 70-84, C: 60-69, D: 50-59, E: 0-49
+```
+
+#### Completed Tasks:
+
+**Backend (100% Complete):**
+- [x] Create gradeController.ts with 4 endpoints:
+  - getStudentGrades() - Get all grades for a student across enrolled subjects
+  - getSubjectGradebook() - Get gradebook for a subject (all students)
+  - getStudentProgress() - Get progress timeline with recent activities
+  - exportGradebookCSV() - Export gradebook to CSV file
+- [x] Create gradeRoutes.ts with proper authorization
+- [x] Mount routes in index.ts
+- [x] Implement weighted grading logic (60/40 split)
+- [x] Implement letter grade calculation
+- [x] Test all API endpoints
+
+**Frontend (100% Complete):**
+- [x] Create gradeService.ts (390 lines) with:
+  - getAllGrades() - Fetch student grades
+  - getSubjectGradebook() - Fetch gradebook for subject
+  - getStudentProgress() - Fetch progress timeline
+  - exportGradebook() - Export to CSV
+  - Helper functions (getGradeColor, getLetterGradeBadgeColor, formatPercentage, formatScore)
+- [x] Create StudentGradesPage.tsx (530 lines):
+  - Statistics dashboard (Overall GPA, Assignments Completed, Quizzes Completed, Pending Work)
+  - Subject cards with grade display
+  - Progress timeline showing recent activities
+  - Grade detail modal with breakdown
+  - Color-coded grade badges
+- [x] Create TeacherGradesPage.tsx (480 lines):
+  - Subject selector dropdown
+  - Gradebook table (student name, assignments avg, quizzes avg, overall, letter grade)
+  - Export to CSV button
+  - Student detail modal with complete grade breakdown
+  - Statistics summary (class average, highest/lowest)
+- [x] Add routes in App.tsx:
+  - /student/grades (STUDENT, ADMIN)
+  - /teacher/grades (TEACHER, ADMIN)
+- [x] Update DashboardPage.tsx with navigation:
+  - Teacher: "📊 Nilai & Rapor" button
+  - Student: "📊 Nilai Saya" button
+- [x] Fix TypeScript build errors
+- [x] Production build successful (194KB JS gzipped to 61KB)
+
+#### API Routes:
+```
+Grades:
+GET    /api/grades/students/:studentId   - Get all grades for a student (STUDENT, TEACHER, ADMIN)
+GET    /api/grades/subjects/:subjectId   - Get gradebook for a subject (TEACHER, ADMIN)
+GET    /api/grades/students/:studentId/progress - Get progress timeline (STUDENT, TEACHER, ADMIN)
+GET    /api/grades/subjects/:subjectId/export   - Export gradebook to CSV (TEACHER, ADMIN)
+```
+
+#### CSV Export Format:
+```csv
+Student Name,Assignment Count,Assignment Average,Quiz Count,Quiz Average,Overall Grade,Letter Grade
+Andi Pratama,5,85.5,3,90.0,87.3,A
+Budi Santoso,4,75.0,3,80.0,77.0,B
+```
+
+#### Deliverables:
+- ✅ Backend API fully functional (no new database tables)
+- ✅ Teacher gradebook view with CSV export
+- ✅ Student grades view with progress timeline
+- ✅ Weighted grading system (60% assignments + 40% quizzes)
+- ✅ Letter grade calculation
+- ✅ Statistics dashboard for both roles
+- ✅ Authorization: Students can only view their own grades
+- ✅ Production deployment ready
+
+**Completion Notes:**
+- Backend: Pure aggregation logic, no database schema changes needed
+- Frontend: Complete grade visualization with intuitive UI
+- Grading: Weighted average formula with letter grades
+- Security:
+  - Students can only view their own grades
+  - Teachers can only view gradebooks for subjects they teach
+- UI/UX:
+  - Color-coded grade badges (green for A, blue for B, yellow for C, orange for D, red for E)
+  - Progress timeline showing recent submissions and quiz attempts
+  - CSV export with proper formatting
+- Production: Fully deployed and tested
+- Next Phase: Announcements & Communication
+
+**Access URLs:**
+- Teacher Gradebook: https://smk.hanifmufid.com/teacher/grades
+- Student Grades: https://smk.hanifmufid.com/student/grades
 
 ---
 
-### Phase 7: Announcements & Communication
-**Goal**: Broadcast system
+### Phase 7: Announcements & Communication ✅ **COMPLETE**
+**Status**: ✅ Complete (Completed 2025-12-03)
+**Progress**: Backend ✅ 100% | Frontend ✅ 100% | Overall: 100%
+**Duration**: ~2 hours (Backend ~1 hour, Frontend ~1 hour)
+**Goal**: Broadcast announcement system with read tracking
 
 #### Features:
-- Create announcements
-- Notification system
-- Rich text content
+- ✅ Create announcements (Teachers and Admins)
+- ✅ Target announcements (ALL, CLASS, SUBJECT)
+- ✅ Priority levels (LOW, NORMAL, HIGH, URGENT)
+- ✅ Pin important announcements
+- ✅ Read tracking system
+- ✅ Unread count per user
+- ✅ Enrollment-based filtering for students
+- ✅ Frontend UI for creating/viewing announcements
+- ✅ Statistics dashboard with unread counts
+- ✅ Rich text content display with modals
 
-_(Full details similar to original plan)_
+#### Database Schema:
+```prisma
+model Announcement {
+  id          String             @id @default(cuid())
+  title       String
+  content     String             @db.Text
+  priority    AnnouncementPriority @default(NORMAL)
+  targetType  AnnouncementTarget   @default(ALL)
+  classId     String?
+  subjectId   String?
+  createdBy   String
+  isPinned    Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  creator User              @relation("CreatedAnnouncements", fields: [createdBy], references: [id])
+  class   Class?            @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject Subject?          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  reads   AnnouncementRead[]
+
+  @@map("announcements")
+}
+
+model AnnouncementRead {
+  id             String       @id @default(cuid())
+  announcementId String
+  userId         String
+  readAt         DateTime     @default(now())
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User         @relation("ReadAnnouncements", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@map("announcement_reads")
+}
+
+enum AnnouncementPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum AnnouncementTarget {
+  ALL      // All users
+  CLASS    // Specific class
+  SUBJECT  // Specific subject (students enrolled + teacher)
+}
+```
+
+#### Completed Tasks:
+
+**Backend (100% Complete):** ✅
+- [x] Design database schema (2 models + 2 enums)
+- [x] Create Prisma migration `20251203005331_add_announcement_system`
+- [x] Update User model with announcement relations
+- [x] Fix Enrollment relation naming conflict
+- [x] Create validation schemas (announcement.ts):
+  - createAnnouncementSchema
+  - updateAnnouncementSchema
+  - getAnnouncementsQuerySchema
+  - Custom validation (classId required when targetType=CLASS, subjectId when SUBJECT)
+- [x] Create announcementController.ts with 7 endpoints (533 lines):
+  - getAllAnnouncements() - Filtered by role and enrollment
+  - getAnnouncementById() - Single announcement with read status
+  - createAnnouncement() - Teachers/Admins only
+  - updateAnnouncement() - Creator or Admin only
+  - deleteAnnouncement() - Creator or Admin only
+  - markAsRead() - Any authenticated user
+  - getUnreadCount() - Per-user unread count
+- [x] Create announcementRoutes.ts with authorization
+- [x] Mount routes in index.ts
+- [x] Test backend endpoints
+- [x] Backend restarted successfully
+
+**Frontend (100% Complete):** ✅
+- [x] Create announcementService.ts with (390 lines):
+  - getAllAnnouncements()
+  - getAnnouncementById()
+  - createAnnouncement()
+  - updateAnnouncement()
+  - deleteAnnouncement()
+  - markAsRead()
+  - getUnreadCount()
+  - Helper functions (formatDate, getPriorityColor, getPriorityLabel, etc.) - 11 functions
+- [x] Create TeacherAnnouncementsPage.tsx (665 lines):
+  - Create/Edit announcement form with validation
+  - Target type selector (ALL, CLASS, SUBJECT) with conditional fields
+  - Priority selector (LOW, NORMAL, HIGH, URGENT)
+  - Pin checkbox functionality
+  - Announcements list with filters
+  - Edit/Delete functionality with confirmation
+  - Read count display per announcement
+  - Detail modal view
+- [x] Create StudentAnnouncementsPage.tsx (410 lines):
+  - Statistics dashboard (Total, Read, Unread)
+  - View all announcements from enrolled subjects
+  - Filter by priority and unread status
+  - Auto mark as read on view
+  - Pinned announcements section at top
+  - Read/Unread visual indicators
+  - Detail modal with full content
+- [x] Add routes in App.tsx:
+  - /teacher/announcements (TEACHER, ADMIN)
+  - /student/announcements (STUDENT, ADMIN)
+- [x] Update TeacherDashboard.tsx with navigation (added "Pengumuman" menu item)
+- [x] Update StudentDashboard.tsx with navigation (added "Pengumuman" menu item)
+- [x] Build and test successfully (194.70 KB gzipped to 61.55 KB)
+
+#### API Routes:
+```
+Announcements:
+GET    /api/announcements              - Get all announcements (filtered by role/enrollment)
+GET    /api/announcements/unread-count - Get unread count for current user
+GET    /api/announcements/:id          - Get single announcement
+POST   /api/announcements              - Create announcement (TEACHER, ADMIN)
+PUT    /api/announcements/:id          - Update announcement (Creator or ADMIN)
+DELETE /api/announcements/:id          - Delete announcement (Creator or ADMIN)
+POST   /api/announcements/:id/read     - Mark announcement as read
+```
+
+#### Enrollment-Based Filtering Logic:
+```javascript
+// Students see announcements based on their enrollments
+const enrolledClassIds = [...new Set(enrollments.map(e => e.classId))];
+const enrolledSubjectIds = [...new Set(enrollments.map(e => e.subjectId))];
+
+where.OR = [
+  { targetType: 'ALL' },                                      // All users
+  { targetType: 'CLASS', classId: { in: enrolledClassIds } }, // Their classes
+  { targetType: 'SUBJECT', subjectId: { in: enrolledSubjectIds } } // Their subjects
+];
+```
+
+#### Authorization Rules:
+- **Create**: Teachers and Admins can create announcements
+  - Teachers can only create announcements for their own subjects
+- **Update**: Only creator or Admin can update
+- **Delete**: Only creator or Admin can delete
+- **Read**: All authenticated users can read announcements they're entitled to see
+- **Mark as Read**: Any authenticated user can mark announcements as read
+
+#### Deliverables:
+- ✅ Database schema with announcement system (2 models, 2 enums)
+- ✅ Validation schemas for all announcement operations (Zod)
+- ✅ Backend API with enrollment-based filtering (7 endpoints)
+- ✅ Teacher UI for creating and managing announcements (665 lines)
+- ✅ Student UI for viewing announcements (410 lines)
+- ✅ Read tracking and unread count system
+- ✅ Priority-based styling (URGENT, HIGH, NORMAL, LOW)
+- ✅ Pin functionality for important announcements
+- ✅ Target-based filtering (ALL, CLASS, SUBJECT)
+- ✅ Dark mode support
+- ✅ Responsive mobile-first design
+- ✅ Production build successful (194.70 KB gzipped to 61.55 KB)
+
+**Completion Notes:**
+- Database: ✅ Schema migrated with Announcement and AnnouncementRead models
+- Backend: ✅ All 7 endpoints implemented with proper authorization
+- Frontend: ✅ Teacher and Student interfaces complete with full functionality
+- Features:
+  - Enrollment-based filtering ensures students only see relevant announcements
+  - Teachers can only create announcements for subjects they teach
+  - Priority levels with color-coded badges
+  - Pin functionality to highlight important announcements
+  - Read tracking with unread counts
+  - Auto mark-as-read when student views announcement
+  - Filters for priority and unread status
+- UI/UX:
+  - Statistics dashboard showing Total/Read/Unread counts
+  - Detail modals for full announcement content
+  - Delete confirmation dialogs
+  - Responsive layout with dark mode support
+- Production: ✅ Fully deployed and tested
+- Next Phase: Phase 8 - Polish & Optimization
+
+**Access URLs:**
+- Teacher Announcements: https://smk.hanifmufid.com/teacher/announcements
+- Student Announcements: https://smk.hanifmufid.com/student/announcements
 
 ---
 

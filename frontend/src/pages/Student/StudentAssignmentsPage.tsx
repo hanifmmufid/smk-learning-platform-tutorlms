@@ -1,34 +1,63 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../../stores/authStore';
+import { useThemeStore } from '../../stores/themeStore';
 import type { Assignment } from '../../services/assignmentService';
 import {
   getAllAssignments,
-  formatDueDate,
-  isOverdue,
 } from '../../services/assignmentService';
 import type { Submission } from '../../services/submissionService';
 import {
   getAllSubmissions,
   submitAssignment,
-  getStatusColor as getSubmissionStatusColor,
-  getStatusLabel as getSubmissionStatusLabel,
-  formatSubmissionDate,
-  getDownloadUrl,
 } from '../../services/submissionService';
-import { useAuthStore } from '../../stores/authStore';
+import Sidebar, {
+  HomeIcon,
+  BookOpenIcon,
+  DocumentTextIcon,
+  AcademicCapIcon,
+  ChartBarIcon,
+} from '../../components/layout/Sidebar';
+import Header from '../../components/layout/Header';
+import Breadcrumb from '../../components/layout/Breadcrumb';
+import AssignmentCard from '../../components/widgets/AssignmentCard';
+import StatCard from '../../components/widgets/StatCard';
+import FilterBar from '../../components/ui/FilterBar';
+import EmptyState from '../../components/ui/EmptyState';
+import { SkeletonCard } from '../../components/ui/Skeleton';
+import Modal from '../../components/ui/Modal';
+import Button from '../../components/ui/Button';
+import {
+  ClipboardDocumentListIcon,
+  ClockIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  CloudArrowUpIcon,
+} from '@heroicons/react/24/outline';
 
 interface AssignmentWithSubmission extends Assignment {
   mySubmission?: Submission;
 }
 
 export default function StudentAssignmentsPage() {
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
+  const { theme, toggleTheme } = useThemeStore();
+  const navigate = useNavigate();
+
   const [assignments, setAssignments] = useState<AssignmentWithSubmission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<string>('');
+
+  // Submit modal state
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  // Submit form state
   const [submitContent, setSubmitContent] = useState('');
   const [submitFile, setSubmitFile] = useState<File | null>(null);
 
@@ -39,17 +68,17 @@ export default function StudentAssignmentsPage() {
   const loadAssignments = async () => {
     try {
       setLoading(true);
-      
+
       // Get all published assignments from enrolled subjects
       const assignmentsRes = await getAllAssignments({ status: 'PUBLISHED' });
-      
+
       // Get my submissions
       const submissionsRes = await getAllSubmissions({ studentId: user?.id });
-      
+
       if (assignmentsRes.success && submissionsRes.success) {
         const assignmentsData: Assignment[] = assignmentsRes.data;
         const submissionsData: Submission[] = submissionsRes.data;
-        
+
         // Merge assignments with submissions
         const merged: AssignmentWithSubmission[] = assignmentsData.map((assignment) => {
           const mySubmission = submissionsData.find(
@@ -57,15 +86,21 @@ export default function StudentAssignmentsPage() {
           );
           return { ...assignment, mySubmission };
         });
-        
+
         setAssignments(merged);
+        setError('');
       }
-    } catch (error: any) {
-      console.error('Error loading assignments:', error);
-      alert(error.response?.data?.error || 'Gagal memuat tugas');
+    } catch (err: any) {
+      console.error('Error loading assignments:', err);
+      setError(err.response?.data?.error || 'Gagal memuat tugas');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
   };
 
   const openSubmitModal = (assignment: Assignment) => {
@@ -73,6 +108,7 @@ export default function StudentAssignmentsPage() {
     setShowSubmitModal(true);
     setSubmitContent('');
     setSubmitFile(null);
+    setError('');
   };
 
   const closeSubmitModal = () => {
@@ -80,28 +116,35 @@ export default function StudentAssignmentsPage() {
     setSelectedAssignment(null);
     setSubmitContent('');
     setSubmitFile(null);
+    setError('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAssignment) return;
 
+    if (!submitContent && !submitFile) {
+      setError('Minimal isi jawaban teks atau upload file');
+      return;
+    }
+
     try {
       setSubmitting(true);
-      
+      setError('');
+
       const res = await submitAssignment(selectedAssignment.id, {
         content: submitContent,
         file: submitFile || undefined,
       });
-      
+
       if (res.success) {
-        alert(res.message || 'Tugas berhasil dikumpulkan!');
+        setSuccess('Tugas berhasil dikumpulkan!');
         closeSubmitModal();
         loadAssignments(); // Reload to update submission status
       }
-    } catch (error: any) {
-      console.error('Error submitting assignment:', error);
-      alert(error.response?.data?.error || 'Gagal mengumpulkan tugas');
+    } catch (err: any) {
+      console.error('Error submitting assignment:', err);
+      setError(err.response?.data?.error || 'Gagal mengumpulkan tugas');
     } finally {
       setSubmitting(false);
     }
@@ -113,318 +156,386 @@ export default function StudentAssignmentsPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading...</div>
-      </div>
-    );
-  }
+  // Filter assignments
+  const filteredAssignments = assignments.filter((assignment) => {
+    const matchesSearch = assignment.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      assignment.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      assignment.subject?.name.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesStatus = (() => {
+      if (!filterStatus) return true;
+      const now = new Date();
+      const deadline = new Date(assignment.dueDate);
+      const isOverdue = now > deadline;
+
+      if (filterStatus === 'not-submitted') return !assignment.mySubmission && !isOverdue;
+      if (filterStatus === 'submitted') return assignment.mySubmission?.status === 'SUBMITTED';
+      if (filterStatus === 'graded') return assignment.mySubmission?.status === 'GRADED';
+      if (filterStatus === 'overdue') return !assignment.mySubmission && isOverdue;
+      return true;
+    })();
+
+    return matchesSearch && matchesStatus;
+  });
+
+  // Calculate stats
+  const stats = {
+    total: assignments.length,
+    notSubmitted: assignments.filter((a) => !a.mySubmission).length,
+    graded: assignments.filter((a) => a.mySubmission?.status === 'GRADED').length,
+    overdue: assignments.filter((a) => {
+      const now = new Date();
+      const deadline = new Date(a.dueDate);
+      return !a.mySubmission && now > deadline;
+    }).length,
+  };
+
+  const navItems = [
+    { name: 'Dashboard', href: '/', icon: HomeIcon },
+    { name: 'Materi', href: '/student/materials', icon: BookOpenIcon },
+    { name: 'Tugas', href: '/student/assignments', icon: DocumentTextIcon },
+    { name: 'Quiz', href: '/student/quizzes', icon: AcademicCapIcon },
+    { name: 'Nilai', href: '/student/grades', icon: ChartBarIcon },
+  ];
+
+  const filterOptions = [
+    { value: '', label: 'Semua Status' },
+    { value: 'not-submitted', label: 'Belum Dikerjakan' },
+    { value: 'submitted', label: 'Menunggu Penilaian' },
+    { value: 'graded', label: 'Sudah Dinilai' },
+    { value: 'overdue', label: 'Terlambat' },
+  ];
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const isOverdue = (dueDate: string): boolean => {
+    return new Date() > new Date(dueDate);
+  };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Tugas Saya</h1>
-        <p className="text-gray-600 mt-1">
-          Lihat dan kerjakan tugas dari guru
-        </p>
-      </div>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Sidebar */}
+      <Sidebar
+        user={{
+          name: user?.name || 'Student',
+          role: 'STUDENT',
+          email: user?.email,
+        }}
+        navItems={navItems}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        onLogout={handleLogout}
+        darkMode={theme === 'dark'}
+        onToggleDarkMode={toggleTheme}
+      />
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-          <p className="text-sm text-blue-600 font-medium">Total Tugas</p>
-          <p className="text-2xl font-bold text-blue-900">{assignments.length}</p>
-        </div>
-        <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-          <p className="text-sm text-yellow-600 font-medium">Belum Dikerjakan</p>
-          <p className="text-2xl font-bold text-yellow-900">
-            {assignments.filter((a) => !a.mySubmission).length}
-          </p>
-        </div>
-        <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-          <p className="text-sm text-green-600 font-medium">Sudah Dinilai</p>
-          <p className="text-2xl font-bold text-green-900">
-            {assignments.filter((a) => a.mySubmission?.status === 'GRADED').length}
-          </p>
-        </div>
-        <div className="bg-red-50 rounded-lg p-4 border border-red-200">
-          <p className="text-sm text-red-600 font-medium">Terlambat</p>
-          <p className="text-2xl font-bold text-red-900">
-            {
-              assignments.filter(
-                (a) => !a.mySubmission && isOverdue(a.dueDate)
-              ).length
-            }
-          </p>
-        </div>
-      </div>
-      {/* Assignments List */}
-      <div className="space-y-4">
-        {assignments.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <p className="text-gray-500">Belum ada tugas yang tersedia</p>
+      {/* Main Content */}
+      <div className="lg:pl-80">
+        {/* Header */}
+        <Header
+          user={{
+            name: user?.name || 'Student',
+            role: 'STUDENT',
+          }}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        />
+
+        {/* Page Content */}
+        <main className="p-6 lg:p-8">
+          {/* Breadcrumb */}
+          <Breadcrumb
+            items={[
+              { label: 'Tugas Saya', icon: DocumentTextIcon },
+            ]}
+            className="mb-6"
+          />
+
+          {/* Page Header */}
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              Tugas Saya
+            </h1>
+            <p className="text-gray-600 dark:text-gray-300">
+              Lihat dan kerjakan tugas dari guru
+            </p>
           </div>
-        ) : (
-          assignments.map((assignment) => {
-            const overdue = isOverdue(assignment.dueDate);
-            const hasSubmission = !!assignment.mySubmission;
-            const isGraded = assignment.mySubmission?.status === 'GRADED';
-            
-            return (
-              <div
-                key={assignment.id}
-                className="bg-white rounded-lg shadow hover:shadow-md transition p-6"
+
+          {/* Success Message */}
+          {success && (
+            <div className="mb-6 bg-success-50 dark:bg-success-900/20 border border-success-200 dark:border-success-700 text-success-800 dark:text-success-300 px-4 py-3 rounded-lg flex items-center justify-between">
+              <span>{success}</span>
+              <button
+                onClick={() => setSuccess('')}
+                className="text-success-600 dark:text-success-400 hover:text-success-800 dark:hover:text-success-200"
               >
-                <div className="flex justify-between items-start gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-xl font-semibold text-gray-900">
-                        {assignment.title}
-                      </h3>
-                      {hasSubmission && (
-                        <span
-                          className={'text-white text-xs px-3 py-1 rounded-full ' + getSubmissionStatusColor(assignment.mySubmission!.status)}
-                        >
-                          {getSubmissionStatusLabel(assignment.mySubmission!.status)}
-                        </span>
-                      )}
-                      {overdue && !hasSubmission && (
-                        <span className="bg-red-500 text-white text-xs px-3 py-1 rounded-full">
-                          Overdue
-                        </span>
-                      )}
-                    </div>
+                ✕
+              </button>
+            </div>
+          )}
 
-                    {assignment.description && (
-                      <p className="text-gray-600 mb-3">{assignment.description}</p>
-                    )}
+          {/* Error Message */}
+          {error && !showSubmitModal && (
+            <div className="mb-6 bg-danger-50 dark:bg-danger-900/20 border border-danger-200 dark:border-danger-700 text-danger-800 dark:text-danger-300 px-4 py-3 rounded-lg flex items-center justify-between">
+              <span>{error}</span>
+              <button
+                onClick={() => setError('')}
+                className="text-danger-600 dark:text-danger-400 hover:text-danger-800 dark:hover:text-danger-200"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
-                    <div className="bg-gray-50 rounded-lg p-4 mb-3">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Instruksi:</p>
-                      <p className="text-sm text-gray-600 whitespace-pre-wrap">
-                        {assignment.instructions}
-                      </p>
-                    </div>
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+            <StatCard
+              title="Total Tugas"
+              value={stats.total}
+              color="primary"
+              icon={<ClipboardDocumentListIcon className="w-8 h-8" />}
+            />
+            <StatCard
+              title="Belum Dikerjakan"
+              value={stats.notSubmitted}
+              color="warning"
+              icon={<ClockIcon className="w-8 h-8" />}
+            />
+            <StatCard
+              title="Sudah Dinilai"
+              value={stats.graded}
+              color="success"
+              icon={<CheckCircleIcon className="w-8 h-8" />}
+            />
+            <StatCard
+              title="Terlambat"
+              value={stats.overdue}
+              color="danger"
+              icon={<XCircleIcon className="w-8 h-8" />}
+            />
+          </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-500">Mata Pelajaran:</span>
-                        <p className="font-medium text-gray-900">
-                          {assignment.subject?.name}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Deadline:</span>
-                        <p className={'font-medium ' + (overdue ? 'text-red-600' : 'text-gray-900')}>
-                          {formatDueDate(assignment.dueDate)}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Nilai Maksimal:</span>
-                        <p className="font-medium text-gray-900">{assignment.maxScore}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Guru:</span>
-                        <p className="font-medium text-gray-900">
-                          {assignment.teacher?.name}
-                        </p>
-                      </div>
-                    </div>
+          {/* Filter Bar */}
+          <div className="mb-6">
+            <FilterBar
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              filterValue={filterStatus}
+              onFilterChange={setFilterStatus}
+              filterOptions={filterOptions}
+              filterLabel="Semua Status"
+              placeholder="Cari tugas..."
+            />
+          </div>
 
-                    {/* Submission Info */}
-                    {hasSubmission && (
-                      <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <p className="text-sm font-medium text-blue-900 mb-2">
-                          Status Pengumpulan:
-                        </p>
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div>
-                            <span className="text-blue-600">Dikumpulkan:</span>
-                            <p className="font-medium text-blue-900">
-                              {formatSubmissionDate(assignment.mySubmission?.submittedAt)}
-                            </p>
-                          </div>
-                          {isGraded && (
-                            <>
-                              <div>
-                                <span className="text-blue-600">Nilai:</span>
-                                <p className="font-bold text-green-600 text-lg">
-                                  {assignment.mySubmission?.score} / {assignment.maxScore}
-                                </p>
-                              </div>
-                              {assignment.mySubmission?.feedback && (
-                                <div className="col-span-2">
-                                  <span className="text-blue-600">Feedback:</span>
-                                  <p className="font-medium text-blue-900 mt-1">
-                                    {assignment.mySubmission.feedback}
-                                  </p>
-                                </div>
-                              )}
-                            </>
-                          )}
-                        </div>
-                        {assignment.mySubmission?.attachmentUrl && (
-                          <a
-                            href={getDownloadUrl(assignment.mySubmission.attachmentUrl)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-block mt-3 text-sm text-blue-600 hover:text-blue-800 underline"
-                          >
-                            Lihat File Submission
-                          </a>
-                        )}
-                      </div>
-                    )}
-                  </div>
+          {/* Assignments Grid */}
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <SkeletonCard key={i} showImage={false} lines={4} />
+              ))}
+            </div>
+          ) : filteredAssignments.length === 0 ? (
+            <EmptyState
+              icon={<ClipboardDocumentListIcon className="w-16 h-16 text-gray-300" />}
+              title={searchQuery || filterStatus ? 'Tidak ada tugas yang sesuai' : 'Belum ada tugas tersedia'}
+              description={
+                searchQuery || filterStatus
+                  ? 'Coba ubah filter atau kata kunci pencarian Anda'
+                  : 'Tugas baru akan muncul di sini ketika guru membuat tugas untuk mata pelajaran yang kamu ikuti'
+              }
+              action={
+                searchQuery || filterStatus
+                  ? {
+                      label: 'Hapus Filter',
+                      onClick: () => {
+                        setSearchQuery('');
+                        setFilterStatus('');
+                      },
+                    }
+                  : undefined
+              }
+            />
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredAssignments.map((assignment) => (
+                  <AssignmentCard
+                    key={assignment.id}
+                    id={assignment.id}
+                    title={assignment.title}
+                    description={assignment.description}
+                    instructions={assignment.instructions}
+                    subject={{
+                      name: assignment.subject?.name || 'Lainnya',
+                      class: assignment.subject?.class,
+                    }}
+                    teacher={{ name: assignment.teacher?.name || 'Unknown' }}
+                    dueDate={assignment.dueDate}
+                    maxScore={assignment.maxScore}
+                    status={assignment.status}
+                    allowLateSubmission={assignment.allowLateSubmission}
+                    mySubmission={assignment.mySubmission}
+                    onSubmit={() => openSubmitModal(assignment)}
+                    viewMode="student"
+                  />
+                ))}
+              </div>
 
-                  {/* Action Button */}
-                  <div>
-                    {!hasSubmission && (
-                      <button
-                        onClick={() => openSubmitModal(assignment)}
-                        className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-medium whitespace-nowrap"
-                      >
-                        Kumpulkan Tugas
-                      </button>
-                    )}
-                  </div>
+              {/* Summary Stats */}
+              <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 px-6 py-4">
+                <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                  <span>
+                    Menampilkan <strong>{filteredAssignments.length}</strong> tugas
+                    {filterStatus && ' dengan status yang dipilih'}
+                  </span>
+                  {searchQuery && (
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Hasil pencarian: "{searchQuery}"
+                    </span>
+                  )}
                 </div>
               </div>
-            );
-          })
-        )}
+            </>
+          )}
+        </main>
       </div>
+
       {/* Submit Modal */}
-      {showSubmitModal && selectedAssignment && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                Kumpulkan Tugas
-              </h2>
-              <p className="text-gray-600 mb-6">{selectedAssignment.title}</p>
-
-              <form onSubmit={handleSubmit}>
-                <div className="space-y-4">
-                  {/* Instructions Reminder */}
-                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                    <p className="text-sm font-medium text-blue-900 mb-1">
-                      Instruksi Tugas:
-                    </p>
-                    <p className="text-sm text-blue-700 whitespace-pre-wrap">
-                      {selectedAssignment.instructions}
-                    </p>
-                  </div>
-
-                  {/* Deadline Warning */}
-                  <div
-                    className={
-                      'rounded-lg p-3 border ' +
-                      (isOverdue(selectedAssignment.dueDate)
-                        ? 'bg-red-50 border-red-200'
-                        : 'bg-yellow-50 border-yellow-200')
-                    }
-                  >
-                    <p className="text-sm font-medium">
-                      <span
-                        className={
-                          isOverdue(selectedAssignment.dueDate)
-                            ? 'text-red-900'
-                            : 'text-yellow-900'
-                        }
-                      >
-                        Deadline:{' '}
-                      </span>
-                      <span
-                        className={
-                          isOverdue(selectedAssignment.dueDate)
-                            ? 'text-red-700'
-                            : 'text-yellow-700'
-                        }
-                      >
-                        {formatDueDate(selectedAssignment.dueDate)}
-                      </span>
-                    </p>
-                    {isOverdue(selectedAssignment.dueDate) && (
-                      <p className="text-xs text-red-600 mt-1">
-                        {selectedAssignment.allowLateSubmission
-                          ? 'Tugas sudah melewati deadline (pengumpulan terlambat diperbolehkan)'
-                          : 'Tugas sudah melewati deadline!'}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Text Answer */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Jawaban (Opsional)
-                    </label>
-                    <textarea
-                      value={submitContent}
-                      onChange={(e) => setSubmitContent(e.target.value)}
-                      rows={6}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Tulis jawaban atau catatan di sini..."
-                    />
-                  </div>
-
-                  {/* File Upload */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Upload File (Opsional)
-                    </label>
-                    <input
-                      type="file"
-                      onChange={handleFileChange}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.jpg,.jpeg,.png,.zip,.rar"
-                    />
-                    {submitFile && (
-                      <p className="text-sm text-gray-600 mt-2">
-                        File dipilih: {submitFile.name} (
-                        {(submitFile.size / 1024 / 1024).toFixed(2)} MB)
-                      </p>
-                    )}
-                    <p className="text-xs text-gray-500 mt-1">
-                      Format yang didukung: PDF, DOC, PPT, XLS, TXT, Gambar, ZIP (Max 100MB)
-                    </p>
-                  </div>
-
-                  {/* Note */}
-                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <p className="text-xs text-gray-600">
-                      <span className="font-medium">Catatan:</span> Anda bisa mengisi
-                      jawaban teks, upload file, atau keduanya. Minimal salah satu harus
-                      diisi.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-3 mt-6">
-                  <button
-                    type="submit"
-                    disabled={submitting || (!submitContent && !submitFile)}
-                    className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
-                  >
-                    {submitting ? 'Mengumpulkan...' : 'Kumpulkan Tugas'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={closeSubmitModal}
-                    disabled={submitting}
-                    className="flex-1 bg-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-400 transition font-medium disabled:bg-gray-200"
-                  >
-                    Batal
-                  </button>
-                </div>
-              </form>
+      <Modal
+        isOpen={showSubmitModal}
+        onClose={closeSubmitModal}
+        title="Kumpulkan Tugas"
+        size="lg"
+      >
+        {selectedAssignment && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Assignment Info */}
+            <div className="bg-primary-50 rounded-lg p-4 border border-primary-200">
+              <h3 className="font-semibold text-primary-900 mb-1">{selectedAssignment.title}</h3>
+              <p className="text-sm text-primary-700">{selectedAssignment.subject?.name}</p>
             </div>
-          </div>
-        </div>
-      )}
+
+            {/* Instructions */}
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+              <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">Instruksi Tugas:</p>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                {selectedAssignment.instructions}
+              </p>
+            </div>
+
+            {/* Deadline Warning */}
+            <div
+              className={
+                'rounded-lg p-3 border ' +
+                (isOverdue(selectedAssignment.dueDate)
+                  ? 'bg-danger-50 dark:bg-danger-900/20 border-danger-200'
+                  : 'bg-warning-50 border-warning-200')
+              }
+            >
+              <p className="text-sm">
+                <span
+                  className={
+                    isOverdue(selectedAssignment.dueDate)
+                      ? 'text-danger-900 font-semibold'
+                      : 'text-warning-900 font-semibold'
+                  }
+                >
+                  Deadline: {new Date(selectedAssignment.dueDate).toLocaleString('id-ID')}
+                </span>
+              </p>
+              {isOverdue(selectedAssignment.dueDate) && (
+                <p className="text-xs text-danger-600 mt-1">
+                  {selectedAssignment.allowLateSubmission
+                    ? 'Tugas sudah melewati deadline (pengumpulan terlambat diperbolehkan)'
+                    : 'Tugas sudah melewati deadline!'}
+                </p>
+              )}
+            </div>
+
+            {/* Error Message in Modal */}
+            {error && (
+              <div className="bg-danger-50 dark:bg-danger-900/20 border border-danger-200 dark:border-danger-700 text-danger-800 dark:text-danger-300 px-4 py-3 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
+
+            {/* Text Answer */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Jawaban (Opsional)
+              </label>
+              <textarea
+                value={submitContent}
+                onChange={(e) => setSubmitContent(e.target.value)}
+                rows={6}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                placeholder="Tulis jawaban atau catatan di sini..."
+              />
+            </div>
+
+            {/* File Upload */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Upload File (Opsional)
+              </label>
+              <input
+                type="file"
+                onChange={handleFileChange}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
+                accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.jpg,.jpeg,.png,.zip,.rar"
+              />
+              {submitFile && (
+                <div className="mt-2 p-3 bg-primary-50 border border-primary-200 rounded-lg">
+                  <p className="text-sm text-primary-900 font-medium">
+                    {submitFile.name}
+                  </p>
+                  <p className="text-xs text-primary-600 mt-1">
+                    {formatFileSize(submitFile.size)}
+                  </p>
+                </div>
+              )}
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Format yang didukung: PDF, DOC, PPT, XLS, TXT, Gambar, ZIP (Max 100MB)
+              </p>
+            </div>
+
+            {/* Note */}
+            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+              <p className="text-xs text-gray-600 dark:text-gray-300">
+                <span className="font-medium">Catatan:</span> Anda bisa mengisi
+                jawaban teks, upload file, atau keduanya. Minimal salah satu harus
+                diisi.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-2">
+              <Button
+                type="submit"
+                variant="primary"
+                loading={submitting}
+                disabled={(!submitContent && !submitFile) || submitting}
+                fullWidth
+                leftIcon={<CloudArrowUpIcon className="w-5 h-5" />}
+              >
+                {submitting ? 'Mengumpulkan...' : 'Kumpulkan Tugas'}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={closeSubmitModal}
+                disabled={submitting}
+              >
+                Batal
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 }

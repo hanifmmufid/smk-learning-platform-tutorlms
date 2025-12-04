@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../../stores/authStore';
+import { useThemeStore } from '../../stores/themeStore';
 import type { Quiz, Question, QuizAttempt } from '../../services/quizService';
 import {
   getAllQuizzes,
@@ -7,14 +10,37 @@ import {
   submitQuizAttempt,
   getAttemptResults,
   isQuizAvailable,
-  formatTimeLimit,
   formatTimeRemaining,
   calculateTimeRemaining,
   formatPercentage,
   checkPassed,
 } from '../../services/quizService';
+import Sidebar, {
+  HomeIcon,
+  BookOpenIcon,
+  DocumentTextIcon,
+  AcademicCapIcon,
+  ChartBarIcon,
+} from '../../components/layout/Sidebar';
+import Header from '../../components/layout/Header';
+import Breadcrumb from '../../components/layout/Breadcrumb';
+import QuizCard from '../../components/widgets/QuizCard';
+import StatCard from '../../components/widgets/StatCard';
+import FilterBar from '../../components/ui/FilterBar';
+import EmptyState from '../../components/ui/EmptyState';
+import { SkeletonCard } from '../../components/ui/Skeleton';
+import {
+  ClipboardDocumentListIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  TrophyIcon,
+} from '@heroicons/react/24/outline';
 
 export default function StudentQuizzesPage() {
+  const { user, logout } = useAuthStore();
+  const { theme, toggleTheme } = useThemeStore();
+  const navigate = useNavigate();
+
   const [availableQuizzes, setAvailableQuizzes] = useState<Quiz[]>([]);
   const [myAttempts, setMyAttempts] = useState<QuizAttempt[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +53,10 @@ export default function StudentQuizzesPage() {
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [showResults, setShowResults] = useState(false);
   const [attemptResults, setAttemptResults] = useState<QuizAttempt | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Filter state
+  const [searchQuery, setSearchQuery] = useState('');
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -80,6 +110,11 @@ export default function StudentQuizzesPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
   };
 
   const handleStartQuiz = async (quiz: Quiz) => {
@@ -193,10 +228,46 @@ export default function StudentQuizzesPage() {
     passed: myAttempts.filter((a) => a.isPassed === true).length,
   };
 
+  // Filter quizzes
+  const filteredQuizzes = availableQuizzes.filter((quiz) =>
+    quiz.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    quiz.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    quiz.subject?.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const navItems = [
+    { name: 'Dashboard', href: '/', icon: HomeIcon },
+    { name: 'Materi', href: '/student/materials', icon: BookOpenIcon },
+    { name: 'Tugas', href: '/student/assignments', icon: DocumentTextIcon },
+    { name: 'Quiz', href: '/student/quizzes', icon: AcademicCapIcon },
+    { name: 'Nilai', href: '/student/grades', icon: ChartBarIcon },
+  ];
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading...</div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <Sidebar
+          user={{ name: user?.name || 'Student', role: 'STUDENT', email: user?.email }}
+          navItems={navItems}
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen(!sidebarOpen)}
+          onLogout={handleLogout}
+        darkMode={theme === 'dark'}
+        onToggleDarkMode={toggleTheme}
+        />
+        <div className="lg:pl-80">
+          <Header
+            user={{ name: user?.name || 'Student', role: 'STUDENT' }}
+            onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          />
+          <main className="p-6 lg:p-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <SkeletonCard key={i} showImage={false} lines={4} />
+              ))}
+            </div>
+          </main>
+        </div>
       </div>
     );
   }
@@ -209,14 +280,14 @@ export default function StudentQuizzesPage() {
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">{currentQuiz.title}</h2>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{currentQuiz.title}</h2>
               <p className="text-gray-600 mt-1">
                 Pertanyaan {currentQuestionIndex + 1} dari {questions.length}
               </p>
             </div>
             {currentQuiz.timeLimit && (
               <div className="text-right">
-                <div className="text-sm text-gray-600">Waktu Tersisa</div>
+                <div className="text-sm text-gray-600 dark:text-gray-300">Waktu Tersisa</div>
                 <div
                   className={`text-3xl font-bold ${
                     timeRemaining < 300 ? 'text-red-600' : 'text-blue-600'
@@ -248,7 +319,7 @@ export default function StudentQuizzesPage() {
               <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-semibold rounded">
                 {currentQuestion.type}
               </span>
-              <span className="text-sm text-gray-600">{currentQuestion.points} poin</span>
+              <span className="text-sm text-gray-600 dark:text-gray-300">{currentQuestion.points} poin</span>
             </div>
             <h3 className="text-xl font-bold text-gray-900 mb-4">{currentQuestion.question}</h3>
           </div>
@@ -269,7 +340,7 @@ export default function StudentQuizzesPage() {
                     onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
                     className="w-5 h-5 text-blue-600"
                   />
-                  <span className="ml-3 text-gray-900">{option.text}</span>
+                  <span className="ml-3 text-gray-900 dark:text-white">{option.text}</span>
                 </label>
               ))}
             </div>
@@ -290,7 +361,7 @@ export default function StudentQuizzesPage() {
                     onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
                     className="w-5 h-5 text-blue-600"
                   />
-                  <span className="ml-3 text-gray-900">{option.text}</span>
+                  <span className="ml-3 text-gray-900 dark:text-white">{option.text}</span>
                 </label>
               ))}
             </div>
@@ -366,7 +437,7 @@ export default function StudentQuizzesPage() {
     );
   }
 
-  // Results View
+  // Results View (keeping original design as it's already good)
   if (showResults && attemptResults) {
     const passed = checkPassed(attemptResults.percentage, attemptResults.quiz?.passingScore);
 
@@ -374,7 +445,7 @@ export default function StudentQuizzesPage() {
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="bg-white rounded-lg shadow-md p-8 mb-6">
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
               Hasil Quiz: {attemptResults.quiz?.title}
             </h2>
             <div className={`text-6xl font-bold mb-4 ${passed ? 'text-green-600' : 'text-red-600'}`}>
@@ -382,11 +453,11 @@ export default function StudentQuizzesPage() {
             </div>
             <div className="flex justify-center gap-8 text-lg">
               <div>
-                <span className="text-gray-600">Skor: </span>
+                <span className="text-gray-600 dark:text-gray-300">Skor: </span>
                 <span className="font-bold">{attemptResults.score}</span>
               </div>
               <div>
-                <span className="text-gray-600">Status: </span>
+                <span className="text-gray-600 dark:text-gray-300">Status: </span>
                 <span className={`font-bold ${passed ? 'text-green-600' : 'text-red-600'}`}>
                   {passed ? 'LULUS' : 'TIDAK LULUS'}
                 </span>
@@ -422,7 +493,7 @@ export default function StudentQuizzesPage() {
                           <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
                             {question.type}
                           </span>
-                          <span className="text-sm text-gray-600">{question.points} poin</span>
+                          <span className="text-sm text-gray-600 dark:text-gray-300">{question.points} poin</span>
                           {isCorrect !== null && (
                             <span
                               className={`text-sm font-semibold ${
@@ -438,8 +509,8 @@ export default function StudentQuizzesPage() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm text-gray-600">Poin Diperoleh</div>
-                        <div className="text-lg font-bold text-gray-900">
+                        <div className="text-sm text-gray-600 dark:text-gray-300">Poin Diperoleh</div>
+                        <div className="text-lg font-bold text-gray-900 dark:text-white">
                           {ans.pointsAwarded !== null ? ans.pointsAwarded : '-'} / {question.points}
                         </div>
                       </div>
@@ -466,7 +537,7 @@ export default function StudentQuizzesPage() {
                                   : 'bg-white border border-gray-200'
                               }`}
                             >
-                              <span className="text-gray-900">
+                              <span className="text-gray-900 dark:text-white">
                                 {opt.text}
                                 {isSelected && ' (Jawaban Anda)'}
                                 {isCorrectOption && ' ✓ (Jawaban Benar)'}
@@ -485,7 +556,7 @@ export default function StudentQuizzesPage() {
                         </div>
                         {ans.feedback && (
                           <div className="mt-2">
-                            <div className="text-sm font-medium text-gray-700 mb-1">Feedback Guru:</div>
+                            <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Feedback Guru:</div>
                             <div className="p-3 bg-blue-50 border border-blue-200 rounded">
                               {ans.feedback}
                             </div>
@@ -524,176 +595,156 @@ export default function StudentQuizzesPage() {
     );
   }
 
-  // Quiz List View
+  // Quiz List View - REDESIGNED
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Quiz Saya</h1>
-        <p className="text-gray-600">Kerjakan quiz untuk mengukur pemahaman Anda</p>
-      </div>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Sidebar */}
+      <Sidebar
+        user={{
+          name: user?.name || 'Student',
+          role: 'STUDENT',
+          email: user?.email,
+        }}
+        navItems={navItems}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        onLogout={handleLogout}
+        darkMode={theme === 'dark'}
+        onToggleDarkMode={toggleTheme}
+      />
 
-      {/* Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="text-3xl font-bold text-blue-600 mb-2">{stats.totalQuizzes}</div>
-          <div className="text-gray-600">Total Quiz Tersedia</div>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="text-3xl font-bold text-green-600 mb-2">{stats.completed}</div>
-          <div className="text-gray-600">Quiz Selesai</div>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="text-3xl font-bold text-yellow-600 mb-2">{stats.pending}</div>
-          <div className="text-gray-600">Sedang Dikerjakan</div>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="text-3xl font-bold text-purple-600 mb-2">{stats.passed}</div>
-          <div className="text-gray-600">Quiz Lulus</div>
-        </div>
-      </div>
+      {/* Main Content */}
+      <div className="lg:pl-80">
+        {/* Header */}
+        <Header
+          user={{
+            name: user?.name || 'Student',
+            role: 'STUDENT',
+          }}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        />
 
-      {/* Available Quizzes */}
-      <div className="mb-12">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Quiz Tersedia</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {availableQuizzes.map((quiz) => {
-            const attempt = myAttempts.find((a) => a.quizId === quiz.id);
-            const isCompleted = attempt && attempt.status !== 'IN_PROGRESS';
+        {/* Page Content */}
+        <main className="p-6 lg:p-8">
+          {/* Breadcrumb */}
+          <Breadcrumb
+            items={[
+              { label: 'Quiz Saya', icon: AcademicCapIcon },
+            ]}
+            className="mb-6"
+          />
 
-            return (
-              <div key={quiz.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition">
-                {isCompleted && (
-                  <div className="mb-3">
-                    <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-full">
-                      Sudah Dikerjakan
-                    </span>
-                  </div>
-                )}
+          {/* Page Header */}
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              Quiz Saya
+            </h1>
+            <p className="text-gray-600 dark:text-gray-300">
+              Kerjakan quiz untuk mengukur pemahaman Anda
+            </p>
+          </div>
 
-                <h3 className="text-xl font-bold text-gray-900 mb-2">{quiz.title}</h3>
-                {quiz.description && (
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-2">{quiz.description}</p>
-                )}
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+            <StatCard
+              title="Total Quiz"
+              value={stats.totalQuizzes}
+              color="primary"
+              icon={<ClipboardDocumentListIcon className="w-8 h-8" />}
+            />
+            <StatCard
+              title="Selesai"
+              value={stats.completed}
+              color="success"
+              icon={<CheckCircleIcon className="w-8 h-8" />}
+            />
+            <StatCard
+              title="Sedang Dikerjakan"
+              value={stats.pending}
+              color="warning"
+              icon={<ClockIcon className="w-8 h-8" />}
+            />
+            <StatCard
+              title="Lulus"
+              value={stats.passed}
+              color="info"
+              icon={<TrophyIcon className="w-8 h-8" />}
+            />
+          </div>
 
-                <div className="space-y-2 mb-4 text-sm text-gray-700">
-                  <div className="flex justify-between">
-                    <span>Mata Pelajaran:</span>
-                    <span className="font-semibold">{quiz.subject?.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Pertanyaan:</span>
-                    <span className="font-semibold">{quiz.totalQuestions || 0}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Waktu:</span>
-                    <span className="font-semibold">{formatTimeLimit(quiz.timeLimit)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Passing Score:</span>
-                    <span className="font-semibold">{quiz.passingScore}%</span>
-                  </div>
-                </div>
+          {/* Filter Bar */}
+          <div className="mb-6">
+            <FilterBar
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              placeholder="Cari quiz..."
+            />
+          </div>
 
-                {isCompleted ? (
-                  <button
-                    onClick={() => attempt && handleViewResults(attempt)}
-                    className="w-full px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-medium"
-                  >
-                    Lihat Hasil
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleStartQuiz(quiz)}
-                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-                  >
-                    {attempt?.status === 'IN_PROGRESS' ? 'Lanjutkan Quiz' : 'Mulai Quiz'}
-                  </button>
-                )}
+          {/* Quizzes Grid */}
+          {filteredQuizzes.length === 0 ? (
+            <EmptyState
+              icon={<ClipboardDocumentListIcon className="w-16 h-16 text-gray-300" />}
+              title={searchQuery ? 'Tidak ada quiz yang sesuai' : 'Belum ada quiz tersedia'}
+              description={
+                searchQuery
+                  ? 'Coba ubah kata kunci pencarian Anda'
+                  : 'Quiz baru akan muncul di sini ketika guru membuat quiz untuk mata pelajaran yang kamu ikuti'
+              }
+              action={
+                searchQuery
+                  ? {
+                      label: 'Hapus Pencarian',
+                      onClick: () => setSearchQuery(''),
+                    }
+                  : undefined
+              }
+            />
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredQuizzes.map((quiz) => {
+                  const attempt = myAttempts.find((a) => a.quizId === quiz.id);
+
+                  return (
+                    <QuizCard
+                      key={quiz.id}
+                      id={quiz.id}
+                      title={quiz.title}
+                      description={quiz.description}
+                      subject={{
+                        name: quiz.subject?.name || 'Lainnya',
+                        class: quiz.subject?.class,
+                      }}
+                      totalQuestions={quiz.totalQuestions}
+                      timeLimit={quiz.timeLimit}
+                      passingScore={quiz.passingScore}
+                      myAttempt={attempt}
+                      onStart={() => handleStartQuiz(quiz)}
+                      onViewResults={() => attempt && handleViewResults(attempt)}
+                      viewMode="student"
+                    />
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
 
-        {availableQuizzes.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">Belum ada quiz yang tersedia</p>
-          </div>
-        )}
+              {/* Summary Stats */}
+              <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 px-6 py-4">
+                <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                  <span>
+                    Menampilkan <strong>{filteredQuizzes.length}</strong> quiz
+                  </span>
+                  {searchQuery && (
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Hasil pencarian: "{searchQuery}"
+                    </span>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </main>
       </div>
-
-      {/* My Attempts History */}
-      {myAttempts.length > 0 && (
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Riwayat Quiz</h2>
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Quiz
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Mata Pelajaran
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Skor
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Persentase
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Tanggal
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {myAttempts.map((attempt) => (
-                    <tr key={attempt.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900">
-                          {attempt.quiz?.title}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {attempt.quiz?.subject?.name}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {attempt.score !== null ? attempt.score : '-'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {formatPercentage(attempt.percentage)}
-                      </td>
-                      <td className="px-6 py-4">
-                        {attempt.isPassed !== null && (
-                          <span
-                            className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                              attempt.isPassed
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-red-100 text-red-800'
-                            }`}
-                          >
-                            {attempt.isPassed ? 'LULUS' : 'TIDAK LULUS'}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {attempt.submittedAt
-                          ? new Date(attempt.submittedAt).toLocaleDateString('id-ID')
-                          : 'Sedang Dikerjakan'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

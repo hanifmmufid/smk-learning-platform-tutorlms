@@ -40,10 +40,10 @@ export default function LoginPage() {
       <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow-md">
         {/* Header */}
         <div className="text-center">
-          <h2 className="text-3xl font-bold text-gray-900">
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
             SMK Learning Platform
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
             Silakan login untuk melanjutkan
           </p>
         </div>

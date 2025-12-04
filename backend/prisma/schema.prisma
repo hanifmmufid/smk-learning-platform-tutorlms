@@ -25,14 +25,16 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  enrollments        Enrollment[]
-  taughtSubjects     Subject[]      @relation("TeacherSubjects")
-  uploadedMaterials  Material[]     @relation("UploadedMaterials")
-  createdAssignments Assignment[]   @relation("CreatedAssignments")
-  submissions        Submission[]   @relation("StudentSubmissions")
-  gradedSubmissions  Submission[]   @relation("GradedByTeacher")
-  createdQuizzes     Quiz[]         @relation("CreatedQuizzes")
-  quizAttempts       QuizAttempt[]  @relation("StudentQuizAttempts")
+  enrollments        Enrollment[]       @relation("StudentEnrollments")
+  taughtSubjects     Subject[]          @relation("TeacherSubjects")
+  uploadedMaterials  Material[]         @relation("UploadedMaterials")
+  createdAssignments Assignment[]       @relation("CreatedAssignments")
+  submissions        Submission[]       @relation("StudentSubmissions")
+  gradedSubmissions  Submission[]       @relation("GradedByTeacher")
+  createdQuizzes     Quiz[]             @relation("CreatedQuizzes")
+  quizAttempts       QuizAttempt[]      @relation("StudentQuizAttempts")
+  createdAnnouncements Announcement[]   @relation("CreatedAnnouncements")
+  readAnnouncements  AnnouncementRead[] @relation("ReadAnnouncements")
 
   @@map("users")
 }
@@ -55,8 +57,9 @@ model Class {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  subjects    Subject[]
-  enrollments Enrollment[]
+  subjects      Subject[]
+  enrollments   Enrollment[]
+  announcements Announcement[]
 
   @@map("classes")
 }
@@ -69,12 +72,13 @@ model Subject {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  class       Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
-  teacher     User         @relation("TeacherSubjects", fields: [teacherId], references: [id])
-  enrollments Enrollment[]
-  materials   Material[]
-  assignments Assignment[]
-  quizzes     Quiz[]
+  class         Class          @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacher       User           @relation("TeacherSubjects", fields: [teacherId], references: [id])
+  enrollments   Enrollment[]
+  materials     Material[]
+  assignments   Assignment[]
+  quizzes       Quiz[]
+  announcements Announcement[]
 
   @@map("subjects")
 }
@@ -86,7 +90,7 @@ model Enrollment {
   subjectId  String
   enrolledAt DateTime @default(now())
 
-  student User    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student User    @relation("StudentEnrollments", fields: [studentId], references: [id], onDelete: Cascade)
   class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
   subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
@@ -293,4 +297,55 @@ enum QuizAttemptStatus {
   IN_PROGRESS // Student is currently taking the quiz
   SUBMITTED   // Quiz submitted, awaiting grading (for essay questions)
   GRADED      // Fully graded
+}
+
+// ============================================
+// Phase 7: Announcements & Communication
+// ============================================
+
+model Announcement {
+  id          String             @id @default(cuid())
+  title       String
+  content     String             @db.Text // Rich text content (HTML/Markdown)
+  priority    AnnouncementPriority @default(NORMAL)
+  targetType  AnnouncementTarget @default(ALL) // ALL, CLASS, SUBJECT
+  classId     String?            // If targetType is CLASS
+  subjectId   String?            // If targetType is SUBJECT
+  createdBy   String             // Teacher/Admin who created
+  isPinned    Boolean            @default(false) // Pin to top
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  creator User              @relation("CreatedAnnouncements", fields: [createdBy], references: [id])
+  class   Class?            @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject Subject?          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  reads   AnnouncementRead[]
+
+  @@map("announcements")
+}
+
+model AnnouncementRead {
+  id             String       @id @default(cuid())
+  announcementId String
+  userId         String       // Student/Teacher who read it
+  readAt         DateTime     @default(now())
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User         @relation("ReadAnnouncements", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId]) // One read record per user per announcement
+  @@map("announcement_reads")
+}
+
+enum AnnouncementPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum AnnouncementTarget {
+  ALL     // All students
+  CLASS   // Specific class
+  SUBJECT // Specific subject
 }

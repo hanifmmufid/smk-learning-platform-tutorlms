@@ -64,6 +64,8 @@ import assignmentRoutes from './routes/assignmentRoutes';
 import submissionRoutes from './routes/submissionRoutes';
 import quizRoutes from './routes/quizRoutes';
 import attemptRoutes from './routes/attemptRoutes';
+import gradeRoutes from './routes/gradeRoutes';
+import announcementRoutes from './routes/announcementRoutes';
 
 // Mount routes
 app.use('/api/auth', authRoutes);
@@ -76,6 +78,8 @@ app.use('/api/assignments', assignmentRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/attempts', attemptRoutes);
+app.use('/api/grades', gradeRoutes);
+app.use('/api/announcements', announcementRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {
