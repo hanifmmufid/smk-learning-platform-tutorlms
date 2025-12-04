@@ -1,7 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../../stores/authStore';
-import { useThemeStore } from '../../stores/themeStore';
 import {
   getAllClasses,
   createClass,
@@ -12,17 +9,14 @@ import type {
   ClassType,
   CreateClassRequest,
 } from '../../services/classService';
-import Sidebar, {
-  HomeIcon,
-  BookOpenIcon,
-  AcademicCapIcon,
-} from '../../components/layout/Sidebar';
 import Header from '../../components/layout/Breadcrumb';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import EmptyState from '../../components/ui/EmptyState';
 import { SkeletonCard } from '../../components/ui/Skeleton';
 import {
+  BookOpenIcon,
+  AcademicCapIcon,
   PlusIcon,
   PencilSquareIcon,
   TrashIcon,
@@ -31,16 +25,12 @@ import {
 } from '@heroicons/react/24/outline';
 
 export default function AdminClassesPage() {
-  const { user, logout } = useAuthStore();
-  const { theme, toggleTheme } = useThemeStore();
-  const navigate = useNavigate();
 
   const [classes, setClasses] = useState<ClassType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -129,11 +119,6 @@ export default function AdminClassesPage() {
     setError('');
   };
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
-
   // Filter classes by search query
   const filteredClasses = classes.filter((classItem) => {
     const query = searchQuery.toLowerCase();
@@ -144,41 +129,15 @@ export default function AdminClassesPage() {
     );
   });
 
-  const navItems = [
-    { name: 'Dashboard', href: '/', icon: HomeIcon },
-    { name: 'Kelas', href: '/admin/classes', icon: AcademicCapIcon },
-    { name: 'Mata Pelajaran', href: '/admin/subjects', icon: BookOpenIcon },
-  ];
-
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Sidebar */}
-      <Sidebar
-        user={{
-          name: user?.name || 'Admin',
-          role: 'ADMIN',
-          email: user?.email,
-        }}
-        navItems={navItems}
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
-        onLogout={handleLogout}
-        darkMode={theme === 'dark'}
-        onToggleDarkMode={toggleTheme}
+    <>
+      {/* Header */}
+      <Header
+        items={[
+          { label: 'Kelola Kelas', icon: AcademicCapIcon },
+        ]}
+        className="mb-6"
       />
-
-      {/* Main Content */}
-      <div className="lg:pl-80">
-        {/* Header */}
-        <Header
-          items={[
-            { label: 'Kelola Kelas', icon: AcademicCapIcon },
-          ]}
-          className="p-6 lg:p-8"
-        />
-
-        {/* Page Content */}
-        <main className="p-6 lg:p-8 pt-0">
           {/* Page Header */}
           <div className="mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
@@ -357,8 +316,6 @@ export default function AdminClassesPage() {
               </div>
             )}
           </div>
-        </main>
-      </div>
 
       {/* Create/Edit Modal */}
       <Modal
@@ -431,6 +388,6 @@ export default function AdminClassesPage() {
           </div>
         </form>
       </Modal>
-    </div>
+    </>
   );
 }

@@ -1,15 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { useThemeStore } from '../stores/themeStore';
-import Sidebar, {
-  HomeIcon,
-  BookOpenIcon,
-  DocumentTextIcon,
-  AcademicCapIcon,
-  ChartBarIcon,
-} from '../components/layout/Sidebar';
-import Header from '../components/layout/Header';
 import ProgressCard from '../components/widgets/ProgressCard';
 import DeadlineCard from '../components/widgets/DeadlineCard';
 import type { DeadlineItem } from '../components/widgets/DeadlineCard';
@@ -17,21 +8,14 @@ import StatCard from '../components/widgets/StatCard';
 import ActivityFeed from '../components/widgets/ActivityFeed';
 import type { Activity } from '../components/widgets/ActivityFeed';
 import {
+  BookOpenIcon,
   ClockIcon,
   CheckCircleIcon,
-  MegaphoneIcon,
 } from '@heroicons/react/24/outline';
 
 const StudentDashboard: React.FC = () => {
-  const { user, logout } = useAuthStore();
-  const { theme, toggleTheme } = useThemeStore();
+  const { user } = useAuthStore();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
 
   // Sample data - akan diganti dengan real API calls
   const deadlines: DeadlineItem[] = [
@@ -76,54 +60,17 @@ const StudentDashboard: React.FC = () => {
     },
   ];
 
-  const navItems = [
-    { name: 'Dashboard', href: '/', icon: HomeIcon },
-    { name: 'Materi', href: '/student/materials', icon: BookOpenIcon },
-    { name: 'Tugas', href: '/student/assignments', icon: DocumentTextIcon, badge: '3' },
-    { name: 'Quiz', href: '/student/quizzes', icon: AcademicCapIcon },
-    { name: 'Nilai', href: '/student/grades', icon: ChartBarIcon },
-    { name: 'Pengumuman', href: '/student/announcements', icon: MegaphoneIcon },
-  ];
-
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Sidebar */}
-      <Sidebar
-        user={{
-          name: user?.name || 'Student',
-          role: 'STUDENT',
-          email: user?.email,
-        }}
-        navItems={navItems}
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
-        onLogout={handleLogout}
-        darkMode={theme === 'dark'}
-        onToggleDarkMode={toggleTheme}
-      />
-
-      {/* Main Content */}
-      <div className="lg:pl-80">
-        {/* Header */}
-        <Header
-          user={{
-            name: user?.name || 'Student',
-            role: 'STUDENT',
-          }}
-          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-        />
-
-        {/* Page Content */}
-        <main className="p-6 lg:p-8">
-          {/* Welcome Section */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              Selamat Datang, {user?.name}! 👋
-            </h1>
-            <p className="text-gray-600 dark:text-gray-300">
-              Yuk lanjutkan belajar dan selesaikan tugasmu hari ini
-            </p>
-          </div>
+    <>
+      {/* Welcome Section */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+          Selamat Datang, {user?.name}! 👋
+        </h1>
+        <p className="text-gray-600 dark:text-gray-300">
+          Yuk lanjutkan belajar dan selesaikan tugasmu hari ini
+        </p>
+      </div>
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -176,21 +123,19 @@ const StudentDashboard: React.FC = () => {
             />
           </div>
 
-          {/* Deadline & Activity */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <DeadlineCard
-              deadlines={deadlines}
-              onViewAll={() => navigate('/student/assignments')}
-            />
-            <ActivityFeed
-              activities={activities}
-              maxItems={5}
-              onViewAll={() => navigate('/student/activities')}
-            />
-          </div>
-        </main>
+      {/* Deadline & Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <DeadlineCard
+          deadlines={deadlines}
+          onViewAll={() => navigate('/student/assignments')}
+        />
+        <ActivityFeed
+          activities={activities}
+          maxItems={5}
+          onViewAll={() => navigate('/student/activities')}
+        />
       </div>
-    </div>
+    </>
   );
 };
 

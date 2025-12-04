@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
-import { useThemeStore } from '../../stores/themeStore';
 import {
   getAllSubjects,
   createSubject,
@@ -16,11 +14,6 @@ import { getAllClasses } from '../../services/classService';
 import type { ClassType } from '../../services/classService';
 import type { User } from '../../services/authService';
 import axios from 'axios';
-import Sidebar, {
-  HomeIcon,
-  BookOpenIcon,
-  AcademicCapIcon,
-} from '../../components/layout/Sidebar';
 import Header from '../../components/layout/Breadcrumb';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
@@ -28,6 +21,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import { SkeletonCard } from '../../components/ui/Skeleton';
 import Avatar from '../../components/ui/Avatar';
 import {
+  BookOpenIcon,
   PlusIcon,
   PencilSquareIcon,
   TrashIcon,
@@ -36,9 +30,6 @@ import {
 } from '@heroicons/react/24/outline';
 
 export default function AdminSubjectsPage() {
-  const { user, logout } = useAuthStore();
-  const { theme, toggleTheme } = useThemeStore();
-  const navigate = useNavigate();
 
   const [subjects, setSubjects] = useState<SubjectType[]>([]);
   const [classes, setClasses] = useState<ClassType[]>([]);
@@ -47,7 +38,6 @@ export default function AdminSubjectsPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -150,11 +140,6 @@ export default function AdminSubjectsPage() {
     setError('');
   };
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
-
   // Filter subjects by search query
   const filteredSubjects = subjects.filter((subject) => {
     const query = searchQuery.toLowerCase();
@@ -165,41 +150,15 @@ export default function AdminSubjectsPage() {
     );
   });
 
-  const navItems = [
-    { name: 'Dashboard', href: '/', icon: HomeIcon },
-    { name: 'Kelas', href: '/admin/classes', icon: AcademicCapIcon },
-    { name: 'Mata Pelajaran', href: '/admin/subjects', icon: BookOpenIcon },
-  ];
-
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Sidebar */}
-      <Sidebar
-        user={{
-          name: user?.name || 'Admin',
-          role: 'ADMIN',
-          email: user?.email,
-        }}
-        navItems={navItems}
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
-        onLogout={handleLogout}
-        darkMode={theme === 'dark'}
-        onToggleDarkMode={toggleTheme}
+    <>
+      {/* Header */}
+      <Header
+        items={[
+          { label: 'Kelola Mata Pelajaran', icon: BookOpenIcon },
+        ]}
+        className="mb-6"
       />
-
-      {/* Main Content */}
-      <div className="lg:pl-80">
-        {/* Header */}
-        <Header
-          items={[
-            { label: 'Kelola Mata Pelajaran', icon: BookOpenIcon },
-          ]}
-          className="p-6 lg:p-8"
-        />
-
-        {/* Page Content */}
-        <main className="p-6 lg:p-8 pt-0">
           {/* Page Header */}
           <div className="mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
@@ -380,8 +339,6 @@ export default function AdminSubjectsPage() {
               </div>
             )}
           </div>
-        </main>
-      </div>
 
       {/* Create/Edit Modal */}
       <Modal
@@ -460,6 +417,6 @@ export default function AdminSubjectsPage() {
           </div>
         </form>
       </Modal>
-    </div>
+    </>
   );
 }

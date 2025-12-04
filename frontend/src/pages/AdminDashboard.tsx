@@ -1,17 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../stores/authStore';
-import { useThemeStore } from '../stores/themeStore';
-import Sidebar, {
-  HomeIcon,
-  AcademicCapIcon,
-  ChartBarIcon,
-} from '../components/layout/Sidebar';
-import Header from '../components/layout/Header';
 import StatCard from '../components/widgets/StatCard';
 import ActivityFeed from '../components/widgets/ActivityFeed';
 import type { Activity } from '../components/widgets/ActivityFeed';
 import {
+  AcademicCapIcon,
   UsersIcon,
   BuildingLibraryIcon,
   BookOpenIcon,
@@ -19,15 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 const AdminDashboard: React.FC = () => {
-  const { user, logout } = useAuthStore();
-  const { theme, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
 
   // Sample data - akan diganti dengan real API calls
   const activities: Activity[] = [
@@ -57,52 +42,17 @@ const AdminDashboard: React.FC = () => {
     },
   ];
 
-  const navItems = [
-    { name: 'Dashboard', href: '/', icon: HomeIcon },
-    { name: 'Kelola Kelas', href: '/admin/classes', icon: BuildingLibraryIcon },
-    { name: 'Mata Pelajaran', href: '/admin/subjects', icon: BookOpenIcon },
-    { name: 'Laporan', href: '/admin/reports', icon: ChartBarIcon },
-  ];
-
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Sidebar */}
-      <Sidebar
-        user={{
-          name: user?.name || 'Admin',
-          role: 'ADMIN',
-          email: user?.email,
-        }}
-        navItems={navItems}
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
-        onLogout={handleLogout}
-        darkMode={theme === 'dark'}
-        onToggleDarkMode={toggleTheme}
-      />
-
-      {/* Main Content */}
-      <div className="lg:pl-80">
-        {/* Header */}
-        <Header
-          user={{
-            name: user?.name || 'Admin',
-            role: 'ADMIN',
-          }}
-          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-        />
-
-        {/* Page Content */}
-        <main className="p-6 lg:p-8">
-          {/* Welcome Section */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              Dashboard Admin 🎯
-            </h1>
-            <p className="text-gray-600 dark:text-gray-300">
-              Kelola sistem dan monitor aktivitas platform
-            </p>
-          </div>
+    <>
+      {/* Welcome Section */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+          Dashboard Admin 🎯
+        </h1>
+        <p className="text-gray-600 dark:text-gray-300">
+          Kelola sistem dan monitor aktivitas platform
+        </p>
+      </div>
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -216,15 +166,13 @@ const AdminDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Activity Feed */}
-          <ActivityFeed
-            activities={activities}
-            title="Aktivitas Sistem Terbaru"
-            maxItems={8}
-          />
-        </main>
-      </div>
-    </div>
+      {/* Activity Feed */}
+      <ActivityFeed
+        activities={activities}
+        title="Aktivitas Sistem Terbaru"
+        maxItems={8}
+      />
+    </>
   );
 };
 
